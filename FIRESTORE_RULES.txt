@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if true;
+      // Host-only writes to the main room doc (scores, timer, questions, etc.)
+      allow update, delete: if request.resource.data.hostSecret == resource.data.hostSecret;
+
+      // Player presence / team assignment (party-grade security)
+      match /players/{playerId} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if true;
+      }
+
+      // Buzzes (first tap wins). Host can clear; players can create.
+      match /buzzes/{buzzId} {
+        allow read: if true;
+        allow create, delete: if true;
+        allow update: if false;
+      }
+    }
+  }
+}
