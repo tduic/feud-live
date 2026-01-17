@@ -1,4 +1,4 @@
-# Feud Live (5v5v5v5)
+# Feud Live
 
 A free, realtime Family-Feud-style web app:
 - 4 teams

@@ -25,6 +25,28 @@ function getOrCreatePlayerId() {
   return id;
 }
 
+function getOrCreatePlayerName() {
+  if (typeof window === "undefined") return "";
+  const k = "feud_player_name";
+  let name = window.localStorage.getItem(k);
+  if (!name) {
+    // Assign a unique default name based on player counter
+    const counterKey = "feud_player_counter";
+    let counter = parseInt(window.localStorage.getItem(counterKey) || "0", 10);
+    counter += 1;
+    window.localStorage.setItem(counterKey, counter.toString());
+    name = `Player ${counter}`;
+    window.localStorage.setItem(k, name);
+  }
+  return name;
+}
+
+function savePlayerName(name: string) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("feud_player_name", name);
+  }
+}
+
 export default function RoomPage({ params }: { params: { roomId: string } }) {
   const { roomId } = params;
   const sp = useSearchParams();
@@ -36,12 +58,24 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   const [buzzes, setBuzzes] = useState<BuzzType[]>([]);
   const [playerId, setPlayerId] = useState<string>("");
   const [playerName, setPlayerName] = useState<string>("");
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [tempName, setTempName] = useState("");
 
   useEffect(() => {
     const id = getOrCreatePlayerId();
     setPlayerId(id);
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem("feud_player_name") : "";
-    const finalName = (nameFromQuery || stored || "Player").slice(0, 24);
+    let finalName = "";
+    if (nameFromQuery) {
+      finalName = nameFromQuery.slice(0, 24);
+    } else {
+      const stored = typeof window !== "undefined" ? window.localStorage.getItem("feud_player_name") : "";
+      if (stored) {
+        finalName = stored;
+      } else {
+        finalName = getOrCreatePlayerName();
+        setShowNameModal(true);
+      }
+    }
     setPlayerName(finalName);
     if (typeof window !== "undefined") window.localStorage.setItem("feud_player_name", finalName);
   }, [nameFromQuery]);
@@ -74,7 +108,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     return (
       <div className="card">
         <div className="h2">Loading room…</div>
-        <div className="small">If this never loads, the room code may be wrong or Firestore isn’t set up.</div>
+        <div className="small">If this never loads, the room code may be wrong or Firestore isn't set up.</div>
       </div>
     );
   }
@@ -84,84 +118,144 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   const hostLink = origin ? `${origin}/r/${roomId}?host=${room.hostSecret}` : `/r/${roomId}?host=…`;
 
   return (
-    <div className="row" style={{ gap: 16 }}>
-      <div className="row" style={{ width: "100%" }}>
-        <div className="card" style={{ flex: 1, minWidth: 280 }}>
-          <div className="h1">
-            Room <span className="mono">{roomId}</span>
-          </div>
-          <div className="small">Status: {room.status}</div>
-          <div className="small">You: {playerName}{myTeamId ? ` (Team ${myTeamId})` : ""}</div>
-          <div className="small">Host mode: {isHost ? "YES" : "NO"}</div>
-        </div>
-        <TimerView room={room} />
-      </div>
-
-      <div className="row" style={{ width: "100%" }}>
-        <CopyBox label="Invite link (players)" value={joinLink} />
-        {isHost ? <CopyBox label="Host link (keep private)" value={hostLink} /> : null}
-      </div>
-
-      {room.status === "lobby" ? (
-        <div className="row" style={{ width: "100%" }}>
-          <Lobby
-            teams={room.teams}
-            players={players}
-            myPlayerId={playerId}
-            onJoinTeam={async (teamId: TeamId) => {
-              await setPlayerTeam(roomId, playerId, teamId);
-            }}
-          />
-
-          {isHost ? (
-            <div className="card" style={{ flex: 1, minWidth: 280 }}>
-              <div className="h2">Host: start when ready</div>
-              <div className="small">Tip: ask each team to join and pick a team.</div>
-              <div className="hr" />
+    <>
+      {showNameModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: 300 }}>
+            <div className="h2">Customize your name (optional)</div>
+            <div className="small">You've been assigned <span className="mono">{playerName}</span>. Change it below or keep it.</div>
+            <div className="hr" />
+            <input
+              className="input"
+              placeholder={playerName}
+              value={tempName}
+              onChange={(e) => setTempName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (tempName.trim()) {
+                    savePlayerName(tempName.trim());
+                    setPlayerName(tempName.trim());
+                  }
+                  setShowNameModal(false);
+                }
+              }}
+              autoFocus
+            />
+            <div className="hr" />
+            <div className="row" style={{ gap: 8 }}>
               <button
                 className="btn"
-                onClick={async () => {
-                  await patchRoomIfHost(roomId, hostSecret, { status: "live" });
+                onClick={() => {
+                  if (tempName.trim()) {
+                    savePlayerName(tempName.trim());
+                    setPlayerName(tempName.trim());
+                  }
+                  setShowNameModal(false);
                 }}
               >
-                Start Game
+                Continue
+              </button>
+              <button
+                className="btn btnSecondary"
+                onClick={() => setShowNameModal(false)}
+              >
+                Keep {playerName}
               </button>
             </div>
-          ) : (
-            <div className="card" style={{ flex: 1, minWidth: 280 }}>
-              <div className="h2">Waiting for host…</div>
-              <div className="small">Once the host starts, you’ll see the buzzer + board.</div>
-            </div>
-          )}
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {room.status !== "lobby" ? (
-        <>
-          <Scoreboard room={room} />
-          <QuestionBoard room={room} />
-          <Buzzer
-            room={room}
-            buzzes={buzzes}
-            canBuzz={!!myTeamId && room.board.buzzerOpen}
-            onBuzz={async () => {
-              if (!myTeamId) return;
-              await buzz(roomId, { playerId, playerName, teamId: myTeamId });
-            }}
-          />
-
-          {isHost ? <HostPanel roomId={roomId} room={room} hostSecret={hostSecret} /> : null}
-
-          {!isHost ? (
-            <div className="card" style={{ width: "100%" }}>
-              <div className="h2">Viewer / Player mode</div>
-              <div className="small">
-                You can buzz when the host opens the buzzer. Ask for the host link if you need controls.
-              </div>
+      <div className="row" style={{ gap: 16 }}>
+        <div className="row" style={{ width: "100%" }}>
+          <div className="card" style={{ flex: 1, minWidth: 280 }}>
+            <div className="h1">
+              Room <span className="mono">{roomId}</span>
             </div>
-          ) : null}
-        </>
-      ) : null}
-    </div>
+            <div className="small">Status: {room.status}</div>
+            <div className="small">You: {playerName}{myTeamId ? ` (Team ${myTeamId})` : ""}</div>
+            <div className="small">Host mode: {isHost ? "YES" : "NO"}</div>
+          </div>
+          <TimerView room={room} />
+        </div>
+
+        <div className="row" style={{ width: "100%" }}>
+          <CopyBox label="Invite link (players)" value={joinLink} />
+          {isHost ? <CopyBox label="Host link (keep private)" value={hostLink} /> : null}
+        </div>
+
+        {room.status === "lobby" ? (
+          <div className="row" style={{ width: "100%" }}>
+            <Lobby
+              teams={room.teams}
+              players={players}
+              myPlayerId={playerId}
+              onJoinTeam={async (teamId: TeamId) => {
+                await setPlayerTeam(roomId, playerId, teamId);
+              }}
+            />
+
+            {isHost ? (
+              <div className="card" style={{ flex: 1, minWidth: 280 }}>
+                <div className="h2">Host: start when ready</div>
+                <div className="small">Tip: ask each team to join and pick a team.</div>
+                <div className="hr" />
+                <button
+                  className="btn"
+                  onClick={async () => {
+                    await patchRoomIfHost(roomId, hostSecret, { status: "live" });
+                  }}
+                >
+                  Start Game
+                </button>
+              </div>
+            ) : (
+              <div className="card" style={{ flex: 1, minWidth: 280 }}>
+                <div className="h2">Waiting for host…</div>
+                <div className="small">Once the host starts, you'll see the buzzer + board.</div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {room.status !== "lobby" ? (
+          <>
+            <Scoreboard room={room} />
+            <QuestionBoard room={room} />
+            <Buzzer
+              room={room}
+              buzzes={buzzes}
+              canBuzz={!!myTeamId && room.board.buzzerOpen}
+              onBuzz={async () => {
+                if (!myTeamId) return;
+                await buzz(roomId, { playerId, playerName, teamId: myTeamId });
+              }}
+            />
+
+            {isHost ? <HostPanel roomId={roomId} room={room} hostSecret={hostSecret} /> : null}
+
+            {!isHost ? (
+              <div className="card" style={{ width: "100%" }}>
+                <div className="h2">Viewer / Player mode</div>
+                <div className="small">
+                  You can buzz when the host opens the buzzer. Ask for the host link if you need controls.
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </>
   );
 }

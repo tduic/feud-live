@@ -38,13 +38,14 @@ export type Room = {
   board: QuestionBoard;
 };
 
-export function defaultTeams(): Team[] {
-  return [
+export function defaultTeams(count: number = 2): Team[] {
+  const allTeams: Team[] = [
     { id: "A", name: "Team A", score: 0, strikes: 0 },
     { id: "B", name: "Team B", score: 0, strikes: 0 },
     { id: "C", name: "Team C", score: 0, strikes: 0 },
     { id: "D", name: "Team D", score: 0, strikes: 0 }
   ];
+  return allTeams.slice(0, count);
 }
 
 export function defaultBoard(): QuestionBoard {
@@ -65,14 +66,14 @@ export function defaultBoard(): QuestionBoard {
   };
 }
 
-export async function createRoom(roomId: string, hostSecret: string): Promise<void> {
+export async function createRoom(roomId: string, hostSecret: string, numTeams: number = 2): Promise<void> {
   const room: Room = {
     createdAt: serverTimestamp(),
     status: "lobby",
     hostSecret,
     round: 1,
     multiplier: 1,
-    teams: defaultTeams(),
+    teams: defaultTeams(numTeams),
     timer: { durationSec: 120, remainingSec: 120, running: false, startedAt: null },
     board: defaultBoard()
   };
