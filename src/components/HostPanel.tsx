@@ -5,6 +5,7 @@ import { Room, TeamId, patchRoomIfHost, Answer } from "@/lib/room";
 import { clamp, randomId } from "@/lib/util";
 import { serverTimestamp } from "firebase/firestore";
 import { clearBuzzes } from "@/lib/buzz";
+import { generateRandomQuestion } from "@/lib/questionGenerator";
 
 export function HostPanel({
   roomId,
@@ -97,19 +98,37 @@ export function HostPanel({
     await clearBuzzes(roomId);
   }
 
+  async function generateNewQuestion() {
+    const data = generateRandomQuestion();
+    const answers = data.answers.map((ans) => ({
+      id: randomId(6),
+      text: ans.text,
+      points: ans.points,
+      revealed: false
+    }));
+    // Pad with empty answers up to 8
+    while (answers.length < 8) {
+      answers.push({
+        id: randomId(6),
+        text: "",
+        points: 0,
+        revealed: false
+      });
+    }
+    await setBoard({ question: data.question, answers });
+  }
+
   async function toggleReveal(id: string) {
     const a = board.answers.find((x) => x.id === id);
     if (!a) return;
     await setAnswer(id, { revealed: !a.revealed });
   }
 
-  async function awardAnswerPoints(answerId: string, teamId?: TeamId) {
-    const ans = board.answers.find((a) => a.id === answerId);
-    if (!ans) return;
-    const points = (Number(ans.points) || 0) * room.multiplier;
-    const tid = teamId ?? board.controlTeamId;
-    if (!tid) return;
-    await updateTeam(tid, (t) => ({ ...t, score: t.score + points }));
+  async function awardAllRevealedAnswers() {
+    const totalPoints = board.answers.reduce((sum, a) => sum + (a.revealed ? (Number(a.points) || 0) * room.multiplier : 0), 0);
+    const tid = board.controlTeamId;
+    if (!tid || totalPoints === 0) return;
+    await updateTeam(tid, (t) => ({ ...t, score: t.score + totalPoints }));
   }
 
   async function openBuzzer(open: boolean) {
@@ -176,6 +195,11 @@ export function HostPanel({
           <input className="input" value={board.question} onChange={(e) => setBoard({ question: e.target.value })} placeholder="Type the question..." />
 
           <div className="hr" />
+          <button className="btn" onClick={generateNewQuestion} style={{ width: "100%" }}>
+            🎲 Generate Random Question
+          </button>
+
+          <div className="hr" />
           <div className="small">Control Team (who gets points when you click Award)</div>
           <div className="row">
             {teams.map((t) => (
@@ -220,21 +244,27 @@ export function HostPanel({
 
         <div className="card">
           <div className="small">Answers (Reveal + Award)</div>
-          <div className="small">Tip: “Award” adds (answer points × multiplier) to the control team.</div>
+          <div className="small">Tip: "Award All Revealed" adds the sum of all revealed answer points (× multiplier) to the control team.</div>
           <div className="hr" />
+          <button
+            className="btn"
+            disabled={!board.controlTeamId || !board.answers.some(a => a.revealed)}
+            onClick={awardAllRevealedAnswers}
+            style={{ marginBottom: 12 }}
+          >
+            Award All Revealed
+          </button>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {board.answers.map((a, idx) => (
               <div key={a.id} className="card" style={{ padding: 12 }}>
                 <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                  <div className="pill mono">#{idx + 1}</div>
                   <div className="row">
-                    <button className={`btn ${a.revealed ? "" : "btnSecondary"}`} onClick={() => toggleReveal(a.id)}>
-                      {a.revealed ? "Revealed" : "Hidden"}
-                    </button>
-                    <button className="btn" disabled={!board.controlTeamId} onClick={() => awardAnswerPoints(a.id)}>
-                      Award
-                    </button>
+                    <div className="pill mono">#{idx + 1}</div>
+                    <div className="pill mono" style={{ marginLeft: 8 }}>{a.points} pts</div>
                   </div>
+                  <button className={`btn ${a.revealed ? "" : "btnSecondary"}`} onClick={() => toggleReveal(a.id)}>
+                    {a.revealed ? "Revealed" : "Hidden"}
+                  </button>
                 </div>
                 <div className="row" style={{ marginTop: 8 }}>
                   <input

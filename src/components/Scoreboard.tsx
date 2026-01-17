@@ -3,12 +3,11 @@
 import { Room, Team } from "@/lib/room";
 
 export function Scoreboard({ room }: { room: Room }) {
-  const sorted = [...room.teams].sort((a, b) => b.score - a.score);
   return (
     <div className="card" style={{ width: "100%" }}>
       <div className="h2">Scoreboard</div>
       <div className="row">
-        {sorted.map((t) => (
+        {room.teams.map((t) => (
           <TeamCard key={t.id} team={t} room={room} />
         ))}
       </div>
