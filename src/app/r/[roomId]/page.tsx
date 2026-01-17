@@ -89,7 +89,10 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   }, [roomId]);
 
   useEffect(() => {
-    return subscribeBuzzes(roomId, setBuzzes);
+    return subscribeBuzzes(roomId, (buzzes) => {
+      console.log("Buzzes updated:", buzzes);
+      setBuzzes(buzzes);
+    });
   }, [roomId]);
 
   useEffect(() => {
@@ -99,7 +102,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     return () => clearInterval(id);
   }, [roomId, playerId, playerName]);
 
-  const isHost = useMemo(() => !!room && hostSecret && room.hostSecret === hostSecret, [room, hostSecret]);
+  const isHost = useMemo(() => !!(room && hostSecret && room.hostSecret === hostSecret), [room, hostSecret]);
 
   const me = useMemo(() => players.find((p) => p.id === playerId) ?? null, [players, playerId]);
   const myTeamId = me?.teamId ?? null;
@@ -201,6 +204,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
               teams={room.teams}
               players={players}
               myPlayerId={playerId}
+              isHost={isHost}
               onJoinTeam={async (teamId: TeamId) => {
                 await setPlayerTeam(roomId, playerId, teamId);
               }}
@@ -231,19 +235,37 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 
         {room.status !== "lobby" ? (
           <>
-            <Scoreboard room={room} />
-            <QuestionBoard room={room} />
-            <Buzzer
+            <Scoreboard
               room={room}
-              buzzes={buzzes}
-              canBuzz={!!myTeamId && room.board.buzzerOpen}
-              onBuzz={async () => {
-                if (!myTeamId) return;
-                await buzz(roomId, { playerId, playerName, teamId: myTeamId });
-              }}
+              isHost={isHost}
+              roomId={roomId}
+              hostSecret={hostSecret}
+              delta={10}
             />
+            {!isHost && <QuestionBoard room={room} />}
+            {!isHost && (
+              <Buzzer
+                room={room}
+                buzzes={buzzes}
+                canBuzz={!!myTeamId && room.board.buzzerOpen}
+                onBuzz={async () => {
+                  try {
+                    if (!myTeamId) {
+                      console.error("Cannot buzz: No team assigned");
+                      return;
+                    }
+                    console.log("Buzzing:", { roomId, playerId, playerName, teamId: myTeamId });
+                    await buzz(roomId, { playerId, playerName, teamId: myTeamId });
+                    console.log("Buzz successful");
+                  } catch (error) {
+                    console.error("Error buzzing:", error);
+                    alert("Failed to buzz. Check console for details.");
+                  }
+                }}
+              />
+            )}
 
-            {isHost ? <HostPanel roomId={roomId} room={room} hostSecret={hostSecret} /> : null}
+            {isHost ? <HostPanel roomId={roomId} room={room} hostSecret={hostSecret} buzzes={buzzes} /> : null}
 
             {!isHost ? (
               <div className="card" style={{ width: "100%" }}>

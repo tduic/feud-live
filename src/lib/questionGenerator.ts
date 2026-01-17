@@ -137,7 +137,48 @@ export const familyFeudQuestions: QuestionData[] = [
   { question: "Which places do politicians often say are 'overcrowded'?", answers: [{ text: "Prisons", points: 46 }, { text: "Classrooms", points: 40 }, { text: "Hospitals/ER", points: 11 }] },
 ];
 
+// Generate a new Family Feud question using OpenAI via API route
+export async function generateAIQuestion(): Promise<QuestionData> {
+  try {
+    const response = await fetch('/api/generate-question', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    const parsedQuestion = await response.json() as QuestionData;
+
+    // Validate the structure
+    if (!parsedQuestion.question || !Array.isArray(parsedQuestion.answers)) {
+      throw new Error("Invalid question format from API");
+    }
+
+    return parsedQuestion;
+  } catch (error) {
+    console.error("Error generating AI question:", error);
+    // Fallback to a random pre-made question if AI generation fails
+    return generateRandomQuestion();
+  }
+}
+
 export function generateRandomQuestion(): QuestionData {
   const question = familyFeudQuestions[Math.floor(Math.random() * familyFeudQuestions.length)];
   return question;
+}
+
+// New function that randomly chooses between AI-generated and pre-made questions
+export async function generateQuestion(): Promise<QuestionData> {
+  // 70% chance to use AI, 30% chance to use pre-made
+  const useAI = Math.random() < 0.7;
+
+  if (useAI) {
+    return await generateAIQuestion();
+  } else {
+    return generateRandomQuestion();
+  }
 }

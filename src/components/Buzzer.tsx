@@ -56,9 +56,25 @@ export function Buzzer({
         {room.board.buzzerOpen ? (sending ? "BUZZING…" : "BUZZ!") : "BUZZER CLOSED"}
       </button>
 
-      <div className="small" style={{ marginTop: 10 }}>
-        Buzz order: {buzzes.length ? buzzes.slice(0, 5).map((b, i) => `${i + 1}) ${b.playerName}`).join(" • ") : "—"}
-      </div>
+      {buzzes.length > 0 && (
+        <>
+          <div className="hr" />
+          <div className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Buzz Order:</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+            {buzzes.slice(0, 5).map((b, i) => (
+              <div key={i} style={{ padding: "4px 0", borderBottom: i < Math.min(buzzes.length, 5) - 1 ? "1px solid #eee" : "none" }}>
+                <span style={{ fontWeight: 700 }}>{i + 1}.</span> {b.playerName} <span className="small">({teamLabel(b.teamId)})</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {buzzes.length === 0 && (
+        <>
+          <div className="hr" />
+          <div className="small">Buzz order: —</div>
+        </>
+      )}
     </div>
   );
 }

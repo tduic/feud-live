@@ -4,20 +4,23 @@ import { useMemo, useState } from "react";
 import { Room, TeamId, patchRoomIfHost, Answer } from "@/lib/room";
 import { clamp, randomId } from "@/lib/util";
 import { serverTimestamp } from "firebase/firestore";
-import { clearBuzzes } from "@/lib/buzz";
-import { generateRandomQuestion } from "@/lib/questionGenerator";
+import { clearBuzzes, Buzz } from "@/lib/buzz";
+import { generateQuestion } from "@/lib/questionGenerator";
 
 export function HostPanel({
   roomId,
   room,
-  hostSecret
+  hostSecret,
+  buzzes
 }: {
   roomId: string;
   room: Room;
   hostSecret: string;
+  buzzes: Buzz[];
 }) {
   const [delta, setDelta] = useState<number>(10);
   const [duration, setDuration] = useState<number>(room.timer.durationSec);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   const isRunning = room.timer.running;
   const teams = useMemo(() => room.teams, [room]);
@@ -99,23 +102,28 @@ export function HostPanel({
   }
 
   async function generateNewQuestion() {
-    const data = generateRandomQuestion();
-    const answers = data.answers.map((ans) => ({
-      id: randomId(6),
-      text: ans.text,
-      points: ans.points,
-      revealed: false
-    }));
-    // Pad with empty answers up to 8
-    while (answers.length < 8) {
-      answers.push({
+    setIsGenerating(true);
+    try {
+      const data = await generateQuestion();
+      const answers = data.answers.map((ans) => ({
         id: randomId(6),
-        text: "",
-        points: 0,
+        text: ans.text,
+        points: ans.points,
         revealed: false
-      });
+      }));
+      // Pad with empty answers up to 8
+      while (answers.length < 8) {
+        answers.push({
+          id: randomId(6),
+          text: "",
+          points: 0,
+          revealed: false
+        });
+      }
+      await setBoard({ question: data.question, answers });
+    } finally {
+      setIsGenerating(false);
     }
-    await setBoard({ question: data.question, answers });
   }
 
   async function toggleReveal(id: string) {
@@ -140,49 +148,119 @@ export function HostPanel({
     <div className="card" style={{ width: "100%" }}>
       <div className="h2">Host Controls</div>
 
-      <div className="grid2">
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="card">
-          <div className="small">Round</div>
-          <div className="row">
-            <button className="btn btnSecondary" onClick={() => setRound(room.round - 1)}>-</button>
-            <div className="pill mono">Round {room.round}</div>
-            <button className="btn btnSecondary" onClick={() => setRound(room.round + 1)}>+</button>
-          </div>
-
-          <div className="hr" />
-          <div className="small">Multiplier</div>
-          <div className="row">
-            <button className={`btn ${room.multiplier === 1 ? "" : "btnSecondary"}`} onClick={() => setMultiplier(1)}>1×</button>
-            <button className={`btn ${room.multiplier === 2 ? "" : "btnSecondary"}`} onClick={() => setMultiplier(2)}>2×</button>
-          </div>
-
-          <div className="hr" />
-          <div className="small">Game State</div>
-          <div className="row">
-            <button className="btn btnSecondary" onClick={() => setStatus("lobby")}>Lobby</button>
-            <button className="btn" onClick={() => setStatus("live")}>Live</button>
-            <button className="btn btnDanger" onClick={() => setStatus("ended")}>End</button>
+          <div className="row" style={{ alignItems: "center", gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div className="small">Round</div>
+              <div className="row" style={{ marginTop: 4 }}>
+                <button className="btn btnSecondary" onClick={() => setRound(room.round - 1)}>-</button>
+                <div className="pill mono">Round {room.round}</div>
+                <button className="btn btnSecondary" onClick={() => setRound(room.round + 1)}>+</button>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="small">Multiplier</div>
+              <div className="row" style={{ marginTop: 4 }}>
+                <button className={`btn ${room.multiplier === 1 ? "" : "btnSecondary"}`} onClick={() => setMultiplier(1)}>1×</button>
+                <button className={`btn ${room.multiplier === 2 ? "" : "btnSecondary"}`} onClick={() => setMultiplier(2)}>2×</button>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="small">Game State</div>
+              <div className="row" style={{ marginTop: 4, gap: 4 }}>
+                <button className="btn btnSecondary" onClick={() => setStatus("lobby")} style={{ fontSize: 12 }}>Lobby</button>
+                <button className="btn" onClick={() => setStatus("live")} style={{ fontSize: 12 }}>Live</button>
+                <button className="btn btnDanger" onClick={() => setStatus("ended")} style={{ fontSize: 12 }}>End</button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="card">
-          <div className="small">Timer Duration (seconds)</div>
-          <input className="input" type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn btnSecondary" onClick={applyDuration}>Set Duration</button>
+          <div className="row" style={{ alignItems: "center", gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div className="small">Timer Duration (sec)</div>
+              <div className="row" style={{ gap: 4, marginTop: 4 }}>
+                <input className="input" type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} style={{ flex: 1 }} />
+                <button className="btn btnSecondary" onClick={applyDuration} style={{ fontSize: 11 }}>Set</button>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="small">Timer Controls</div>
+              <div className="row" style={{ gap: 4, marginTop: 4 }}>
+                <button className="btn" onClick={startTimer} disabled={isRunning} style={{ fontSize: 12 }}>Start</button>
+                <button className="btn btnSecondary" onClick={pauseTimer} disabled={!isRunning} style={{ fontSize: 12 }}>Pause</button>
+                <button className="btn btnSecondary" onClick={resetTimer} style={{ fontSize: 12 }}>Reset</button>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="small">Points Step</div>
+              <input className="input" type="number" value={delta} onChange={(e) => setDelta(Number(e.target.value))} style={{ marginTop: 4 }} />
+            </div>
           </div>
+        </div>
 
-          <div className="hr" />
-          <div className="small">Timer Controls</div>
-          <div className="row">
-            <button className="btn" onClick={startTimer} disabled={isRunning}>Start</button>
-            <button className="btn btnSecondary" onClick={pauseTimer} disabled={!isRunning}>Pause</button>
-            <button className="btn btnSecondary" onClick={resetTimer}>Reset</button>
+        <div className="card">
+          <div className="row" style={{ alignItems: "flex-start", gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div className="small">Control Team</div>
+              <div className="row" style={{ gap: 4, marginTop: 4 }}>
+                {teams.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`btn ${board.controlTeamId === t.id ? "" : "btnSecondary"}`}
+                    onClick={() => setBoard({ controlTeamId: t.id })}
+                    style={{ fontSize: 12 }}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+                <button className="btn btnSecondary" onClick={() => setBoard({ controlTeamId: null })} style={{ fontSize: 12 }}>None</button>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="small">Buzzer</div>
+              <div className="row" style={{ gap: 4, marginTop: 4 }}>
+                <button className={`btn ${board.buzzerOpen ? "btnSecondary" : ""}`} onClick={() => openBuzzer(true)} style={{ fontSize: 12 }}>
+                  Open + Clear
+                </button>
+                <button className="btn btnSecondary" onClick={() => openBuzzer(false)} style={{ fontSize: 12 }}>
+                  Close
+                </button>
+                <button className="btn btnSecondary" onClick={() => clearBuzzes(roomId)} style={{ fontSize: 12 }}>
+                  Clear
+                </button>
+              </div>
+              {buzzes.length > 0 && (
+                <div style={{ marginTop: 8, padding: 10, backgroundColor: "#fff3cd", border: "2px solid #ffc107", borderRadius: 6 }}>
+                  <div style={{ marginBottom: 8, fontWeight: 700, fontSize: 13, color: "#856404" }}>🏁 Buzz Order</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {buzzes.slice(0, 5).map((b, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: "6px 8px",
+                          backgroundColor: i === 0 ? "#28a745" : "#fff",
+                          color: i === 0 ? "#fff" : "#333",
+                          borderRadius: 4,
+                          fontSize: 13,
+                          fontWeight: i === 0 ? 700 : 500,
+                          border: i === 0 ? "none" : "1px solid #dee2e6"
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, marginRight: 6 }}>{i + 1}.</span>
+                        {b.playerName}
+                        <span style={{ marginLeft: 6, fontSize: 11, opacity: i === 0 ? 0.9 : 0.7 }}>
+                          (Team {b.teamId})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-
-          <div className="hr" />
-          <div className="small">Points step (multiplier applies)</div>
-          <input className="input" type="number" value={delta} onChange={(e) => setDelta(Number(e.target.value))} />
         </div>
       </div>
 
@@ -190,46 +268,17 @@ export function HostPanel({
 
       <div className="h2">Question Board</div>
       <div className="card">
-        <div style={{ display: "grid", gridTemplateColumns: "0.85fr 1fr 1fr", gap: 24, marginBottom: 16 }}>
-          <div>
-            <div className="small">Question</div>
-            <input className="input" value={board.question} onChange={(e) => setBoard({ question: e.target.value })} placeholder="Type the question..." style={{ marginTop: 8 }} />
-            <button className="btn" onClick={generateNewQuestion} style={{ width: "100%", marginTop: 8 }}>
-              🎲 Generate Random Question
-            </button>
-          </div>
-
-          <div>
-            <div className="small">Control Team</div>
-            <div className="row" style={{ flexDirection: "column", gap: 4 }}>
-              {teams.map((t) => (
-                <button
-                  key={t.id}
-                  className={`btn ${board.controlTeamId === t.id ? "" : "btnSecondary"}`}
-                  onClick={() => setBoard({ controlTeamId: t.id })}
-                  style={{ fontSize: 12 }}
-                >
-                  {t.name}
-                </button>
-              ))}
-              <button className="btn btnSecondary" onClick={() => setBoard({ controlTeamId: null })} style={{ fontSize: 12 }}>None</button>
-            </div>
-          </div>
-
-          <div>
-            <div className="small">Buzzer</div>
-            <div className="row" style={{ flexDirection: "column", gap: 4 }}>
-              <button className={`btn ${board.buzzerOpen ? "btnSecondary" : ""}`} onClick={() => openBuzzer(true)} style={{ fontSize: 12 }}>
-                Open + Clear
-              </button>
-              <button className="btn btnSecondary" onClick={() => openBuzzer(false)} style={{ fontSize: 12 }}>
-                Close
-              </button>
-              <button className="btn btnSecondary" onClick={() => clearBuzzes(roomId)} style={{ fontSize: 12 }}>
-                Clear
-              </button>
-            </div>
-          </div>
+        <div>
+          <div className="small">Question</div>
+          <input className="input" value={board.question} onChange={(e) => setBoard({ question: e.target.value })} placeholder="Type the question..." style={{ marginTop: 8 }} />
+          <button
+            className="btn"
+            onClick={generateNewQuestion}
+            disabled={isGenerating}
+            style={{ width: "100%", marginTop: 8, opacity: isGenerating ? 0.6 : 1 }}
+          >
+            {isGenerating ? "🤖 Generating AI Question..." : "🎲 Generate AI Question"}
+          </button>
         </div>
 
         <div className="hr" />
@@ -292,43 +341,6 @@ export function HostPanel({
             Reset Board
           </button>
         </div>
-      </div>
-
-      <div className="hr" />
-      <div className="h2">Team Controls</div>
-      <div className="row">
-        {teams.map((t) => (
-          <div key={t.id} className="card" style={{ flex: 1, minWidth: 240 }}>
-            <div className="small">{t.id}</div>
-            <input
-              className="input"
-              value={t.name}
-              onChange={(e) => {
-                const name = e.target.value;
-                const newTeams = teams.map((x) => (x.id === t.id ? { ...x, name } : x));
-                setTeams(newTeams);
-              }}
-            />
-
-            <div className="row" style={{ marginTop: 10 }}>
-              <button className="btn" onClick={() => updateTeam(t.id, (x) => ({ ...x, score: x.score + delta * room.multiplier }))}>
-                +{delta}×{room.multiplier}
-              </button>
-              <button className="btn btnSecondary" onClick={() => updateTeam(t.id, (x) => ({ ...x, score: x.score - delta * room.multiplier }))}>
-                -{delta}×{room.multiplier}
-              </button>
-            </div>
-
-            <div className="row" style={{ marginTop: 10 }}>
-              <button className="btn btnSecondary" onClick={() => updateTeam(t.id, (x) => ({ ...x, strikes: clamp(x.strikes + 1, 0, 3) }))}>
-                Strike +
-              </button>
-              <button className="btn btnSecondary" onClick={() => updateTeam(t.id, (x) => ({ ...x, strikes: clamp(x.strikes - 1, 0, 3) }))}>
-                Strike -
-              </button>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

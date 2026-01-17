@@ -8,11 +8,13 @@ export function Lobby({
   teams,
   players,
   myPlayerId,
+  isHost,
   onJoinTeam
 }: {
   teams: Team[];
   players: Player[];
   myPlayerId: string;
+  isHost: boolean;
   onJoinTeam: (teamId: TeamId) => Promise<void>;
 }) {
   const byTeam = useMemo(() => {
@@ -30,7 +32,11 @@ export function Lobby({
     <div className="card" style={{ width: "100%" }}>
       <div className="h2">Lobby</div>
       <div className="small">
-        Pick a team. You’re: <span className="mono">{me?.name ?? "(unknown)"}</span>
+        {isHost ? (
+          <>You're the host: <span className="mono">{me?.name ?? "(unknown)"}</span>. You cannot join a team.</>
+        ) : (
+          <>Pick a team. You're: <span className="mono">{me?.name ?? "(unknown)"}</span></>
+        )}
       </div>
 
       <div className="hr" />
@@ -40,7 +46,12 @@ export function Lobby({
           <div key={t.id} className="card" style={{ flex: 1, minWidth: 240 }}>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{t.name}</div>
-              <button className="btn btnSecondary" onClick={() => onJoinTeam(t.id)}>
+              <button
+                className="btn btnSecondary"
+                onClick={() => onJoinTeam(t.id)}
+                disabled={isHost}
+                style={isHost ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+              >
                 Join
               </button>
             </div>
