@@ -189,105 +189,108 @@ export function HostPanel({
       <div className="hr" />
 
       <div className="h2">Question Board</div>
-      <div className="grid2">
-        <div className="card">
-          <div className="small">Question</div>
-          <input className="input" value={board.question} onChange={(e) => setBoard({ question: e.target.value })} placeholder="Type the question..." />
+      <div className="card">
+        <div style={{ display: "grid", gridTemplateColumns: "0.85fr 1fr 1fr", gap: 24, marginBottom: 16 }}>
+          <div>
+            <div className="small">Question</div>
+            <input className="input" value={board.question} onChange={(e) => setBoard({ question: e.target.value })} placeholder="Type the question..." style={{ marginTop: 8 }} />
+            <button className="btn" onClick={generateNewQuestion} style={{ width: "100%", marginTop: 8 }}>
+              🎲 Generate Random Question
+            </button>
+          </div>
 
-          <div className="hr" />
-          <button className="btn" onClick={generateNewQuestion} style={{ width: "100%" }}>
-            🎲 Generate Random Question
-          </button>
+          <div>
+            <div className="small">Control Team</div>
+            <div className="row" style={{ flexDirection: "column", gap: 4 }}>
+              {teams.map((t) => (
+                <button
+                  key={t.id}
+                  className={`btn ${board.controlTeamId === t.id ? "" : "btnSecondary"}`}
+                  onClick={() => setBoard({ controlTeamId: t.id })}
+                  style={{ fontSize: 12 }}
+                >
+                  {t.name}
+                </button>
+              ))}
+              <button className="btn btnSecondary" onClick={() => setBoard({ controlTeamId: null })} style={{ fontSize: 12 }}>None</button>
+            </div>
+          </div>
 
-          <div className="hr" />
-          <div className="small">Control Team (who gets points when you click Award)</div>
-          <div className="row">
-            {teams.map((t) => (
-              <button
-                key={t.id}
-                className={`btn ${board.controlTeamId === t.id ? "" : "btnSecondary"}`}
-                onClick={() => setBoard({ controlTeamId: t.id })}
-              >
-                {t.name}
+          <div>
+            <div className="small">Buzzer</div>
+            <div className="row" style={{ flexDirection: "column", gap: 4 }}>
+              <button className={`btn ${board.buzzerOpen ? "btnSecondary" : ""}`} onClick={() => openBuzzer(true)} style={{ fontSize: 12 }}>
+                Open + Clear
               </button>
-            ))}
-            <button className="btn btnSecondary" onClick={() => setBoard({ controlTeamId: null })}>None</button>
-          </div>
-
-          <div className="hr" />
-          <div className="small">Buzzer</div>
-          <div className="row">
-            <button className={`btn ${board.buzzerOpen ? "btnSecondary" : ""}`} onClick={() => openBuzzer(true)}>
-              Open + Clear
-            </button>
-            <button className="btn btnSecondary" onClick={() => openBuzzer(false)}>
-              Close
-            </button>
-            <button className="btn btnSecondary" onClick={() => clearBuzzes(roomId)}>
-              Clear Buzzes
-            </button>
-          </div>
-
-          <div className="hr" />
-          <div className="row">
-            <button className="btn btnSecondary" onClick={() => setTeams(teams.map((t) => ({ ...t, strikes: 0 })))}>
-              Clear Strikes
-            </button>
-            <button className="btn btnSecondary" onClick={() => setTeams(teams.map((t) => ({ ...t, score: 0 })))}>
-              Reset Scores
-            </button>
-            <button className="btn btnDanger" onClick={resetBoard}>
-              Reset Board
-            </button>
+              <button className="btn btnSecondary" onClick={() => openBuzzer(false)} style={{ fontSize: 12 }}>
+                Close
+              </button>
+              <button className="btn btnSecondary" onClick={() => clearBuzzes(roomId)} style={{ fontSize: 12 }}>
+                Clear
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="card">
-          <div className="small">Answers (Reveal + Award)</div>
-          <div className="small">Tip: "Award All Revealed" adds the sum of all revealed answer points (× multiplier) to the control team.</div>
-          <div className="hr" />
-          <button
-            className="btn"
-            disabled={!board.controlTeamId || !board.answers.some(a => a.revealed)}
-            onClick={awardAllRevealedAnswers}
-            style={{ marginBottom: 12 }}
-          >
-            Award All Revealed
-          </button>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {board.answers.map((a, idx) => (
-              <div key={a.id} className="card" style={{ padding: 12 }}>
-                <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                  <div className="row">
-                    <div className="pill mono">#{idx + 1}</div>
-                    <div className="pill mono" style={{ marginLeft: 8 }}>{a.points} pts</div>
-                  </div>
-                  <button className={`btn ${a.revealed ? "" : "btnSecondary"}`} onClick={() => toggleReveal(a.id)}>
-                    {a.revealed ? "Revealed" : "Hidden"}
-                  </button>
+        <div className="hr" />
+
+        <div className="small">Answers (Reveal + Award)</div>
+        <div className="small">Tip: "Award All Revealed" adds the sum of all revealed answer points (× multiplier) to the control team.</div>
+        <div className="hr" />
+        <button
+          className="btn"
+          disabled={!board.controlTeamId || !board.answers.some(a => a.revealed)}
+          onClick={awardAllRevealedAnswers}
+          style={{ marginBottom: 12 }}
+        >
+          Award All Revealed
+        </button>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+          {board.answers.map((a, idx) => (
+            <div key={a.id} className="card" style={{ padding: 12 }}>
+              <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                <div className="row">
+                  <div className="pill mono">#{idx + 1}</div>
+                  <div className="pill mono" style={{ marginLeft: 8 }}>{a.points} pts</div>
                 </div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <input
-                    className="input"
-                    value={a.text}
-                    onChange={(e) => setAnswer(a.id, { text: e.target.value })}
-                    placeholder="Answer text"
-                  />
-                  <input
-                    className="input"
-                    style={{ width: 120 }}
-                    type="number"
-                    value={a.points}
-                    onChange={(e) => setAnswer(a.id, { points: Number(e.target.value) })}
-                    placeholder="Pts"
-                  />
-                </div>
+                <button className={`btn ${a.revealed ? "" : "btnSecondary"}`} onClick={() => toggleReveal(a.id)}>
+                  {a.revealed ? "Revealed" : "Hidden"}
+                </button>
               </div>
-            ))}
-          </div>
-          <div className="row" style={{ marginTop: 10 }}>
-            <button className="btn btnSecondary" onClick={addAnswer}>+ Add Answer Row</button>
-          </div>
+              <div className="row" style={{ marginTop: 8 }}>
+                <input
+                  className="input"
+                  value={a.text}
+                  onChange={(e) => setAnswer(a.id, { text: e.target.value })}
+                  placeholder="Answer text"
+                />
+                <input
+                  className="input"
+                  style={{ width: 120 }}
+                  type="number"
+                  value={a.points}
+                  onChange={(e) => setAnswer(a.id, { points: Number(e.target.value) })}
+                  placeholder="Pts"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="row" style={{ marginTop: 10 }}>
+          <button className="btn btnSecondary" onClick={addAnswer}>+ Add Answer Row</button>
+        </div>
+
+        <div className="hr" />
+        <div className="row">
+          <button className="btn btnSecondary" onClick={() => setTeams(teams.map((t) => ({ ...t, strikes: 0 })))}>
+            Clear Strikes
+          </button>
+          <button className="btn btnSecondary" onClick={() => setTeams(teams.map((t) => ({ ...t, score: 0 })))}>
+            Reset Scores
+          </button>
+          <button className="btn btnDanger" onClick={resetBoard}>
+            Reset Board
+          </button>
         </div>
       </div>
 
