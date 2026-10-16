@@ -9,7 +9,7 @@ A free, realtime Family-Feud-style web app:
 - shared timer
 
 ## 1) Prereqs (free)
-- Node.js 18+
+- Node.js 24 (LTS)
 - A free Firebase project (Firestore)
 - (Optional) free Vercel account for deployment
 
